@@ -110,10 +110,7 @@ fn fold_up(paper: Paper, axis: usize) -> Paper {
     let folded_size = Coord::new(paper.size.x, axis.max(paper.size.y - paper_start));
     let mut folded_paper = Paper {
         size: folded_size,
-        cells: (&paper.cells[0..folded_size.x * folded_size.y])
-            .iter()
-            .copied()
-            .collect::<Vec<bool>>(),
+        cells: paper.cells[0..folded_size.x * folded_size.y].to_vec(),
     };
     (paper_start..paper.size.y)
         .enumerate()

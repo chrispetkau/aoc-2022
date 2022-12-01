@@ -7,7 +7,7 @@ pub(super) struct Line((Point, Point));
 
 impl Line {
     pub fn new(a: Point, b: Point) -> Self {
-        Self { 0: (a, b) }
+        Self((a, b))
     }
 
     pub fn a(&self) -> Point {

@@ -6,7 +6,7 @@ pub(super) struct Point((usize, usize));
 
 impl Point {
     pub fn new(x: usize, y: usize) -> Self {
-        Self { 0: (x, y) }
+        Self((x, y))
     }
 
     pub fn x(&self) -> usize {

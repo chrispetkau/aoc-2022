@@ -34,9 +34,9 @@ fn evaluate_packet(operator: u32, operands: &[Value]) -> Result<Value> {
             .copied()
             .max()
             .ok_or_else(|| anyhow!("No operands")),
-        GREATER_THAN => Ok(if operands[0] > operands[1] { 1 } else { 0 }),
-        LESS_THAN => Ok(if operands[0] < operands[1] { 1 } else { 0 }),
-        EQUAL_TO => Ok(if operands[0] == operands[1] { 1 } else { 0 }),
+        GREATER_THAN => Ok(u64::from(operands[0] > operands[1])),
+        LESS_THAN => Ok(u64::from(operands[0] < operands[1])),
+        EQUAL_TO => Ok(u64::from(operands[0] == operands[1])),
         bad_operator => Err(anyhow!("Bad operator: {}", bad_operator)),
     }
 }

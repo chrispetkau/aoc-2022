@@ -26,15 +26,9 @@ impl FromStr for Cave {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.chars().all(|c| c.is_ascii_lowercase()) {
-            Ok(Self {
-                0: CaveSize::Small,
-                1: String::from(s),
-            })
+            Ok(Self(CaveSize::Small, String::from(s)))
         } else if s.chars().all(|c| c.is_ascii_uppercase()) {
-            Ok(Self {
-                0: CaveSize::Big,
-                1: String::from(s),
-            })
+            Ok(Self(CaveSize::Big, String::from(s)))
         } else {
             Err(anyhow!("Can't parse into CaveId: [{}]", s))
         }
@@ -49,16 +43,13 @@ impl FromStr for Tunnel {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut caves = s.split('-');
-        Ok(Self {
-            0: caves
+        Ok(Self(caves
                 .next()
                 .ok_or_else(|| anyhow!("Missing 'from' cave"))?
-                .parse::<Cave>()?,
-            1: caves
+                .parse::<Cave>()?, caves
                 .next()
                 .ok_or_else(|| anyhow!("Missing 'to' cave"))?
-                .parse::<Cave>()?,
-        })
+                .parse::<Cave>()?))
     }
 }
 

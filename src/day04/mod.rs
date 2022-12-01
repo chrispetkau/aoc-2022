@@ -26,7 +26,7 @@ impl Board {
         let turns = self
             .0
             .iter()
-            .map(|&number| number_to_turn.get(&Number { 0: number }).copied());
+            .map(|&number| number_to_turn.get(&Number(number)).copied());
         let row_win_turns = (0..5).map(|row| {
             turns
                 .clone()
@@ -60,7 +60,7 @@ impl FromStr for Board {
             .lines()
             .flat_map(|line| line.split_whitespace().map(|n| n.parse::<usize>()))
             .collect::<Result<Vec<usize>, ParseIntError>>()?;
-        Ok(Self { 0: numbers })
+        Ok(Self(numbers))
     }
 }
 
@@ -76,7 +76,7 @@ fn score(
         .try_fold(0, |current, &number| -> Result<usize> {
             let number_score = if winning_turn
                 < *number_to_turn
-                    .get(&Number { 0: number })
+                    .get(&Number(number))
                     .ok_or_else(|| anyhow!("board number not found in number_to_turn map"))?
             {
                 number
@@ -99,7 +99,7 @@ fn solve_for(numbers: &[usize], boards: &str) -> Result<(usize, usize, Duration)
     let number_to_turn = numbers
         .iter()
         .enumerate()
-        .map(|(index, &number)| (Number { 0: number }, Turn { 0: index }))
+        .map(|(index, &number)| (Number(number), Turn(index)))
         .collect::<HashMap<Number, Turn>>();
 
     type Winner<'a> = Option<(Turn, &'a Board)>;
