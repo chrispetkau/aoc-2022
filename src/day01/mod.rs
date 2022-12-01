@@ -1,5 +1,5 @@
 use self::input::INPUT;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::time::{Duration, Instant};
 
 mod input;
@@ -31,9 +31,7 @@ fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
         .map(|inventory| inventory.iter().sum::<usize>())
         .collect::<Vec<_>>();
     inventory_sums.sort();
-    let largest_inventory = *inventory_sums
-        .last()
-        .ok_or_else(|| anyhow!("no largest inventory"))?;
+    let largest_inventory = inventory_sums.iter().rev().take(1).sum::<usize>();
     let largest_three = inventory_sums.iter().rev().take(3).sum::<usize>();
     Ok((largest_inventory, largest_three, parse_duration))
 }
