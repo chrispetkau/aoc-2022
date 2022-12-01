@@ -18,11 +18,11 @@ const INPUT: &str = "1000
 #[test]
 fn part1() {
     assert_eq!(24000, solve_for(INPUT).unwrap().0);
-    // assert_eq!(1557, solve_for(&input::INPUT).0);
+    assert_eq!(72070, solve_for(input::INPUT).unwrap().0);
 }
 
 #[test]
 fn part2() {
-    // assert_eq!(5, solve_for(&INPUT).1);
-    // assert_eq!(1608, solve_for(&input::INPUT).1);
+    assert_eq!(45000, solve_for(INPUT).unwrap().1);
+    assert_eq!(211805, solve_for(input::INPUT).unwrap().1);
 }
