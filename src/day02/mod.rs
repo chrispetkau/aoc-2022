@@ -1,5 +1,5 @@
 use self::input::INPUT;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 mod input;
 
@@ -104,29 +104,60 @@ fn score(my_shape: Shape, outcome: Outcome) -> usize {
     usize::from(my_shape) + usize::from(outcome)
 }
 
-fn solve_part1(input: &str) -> usize {
+fn parse_part1(input: &str) -> Vec<(Shape, Shape)> {
     input
         .lines()
         .map(|line| {
-            let opponent_shape = Shape::from(line.chars().next().unwrap());
-            let my_shape = Shape::from(line.chars().nth(2).unwrap());
-            score(my_shape, outcome(opponent_shape, my_shape))
+            (
+                Shape::from(line.chars().next().unwrap()),
+                Shape::from(line.chars().nth(2).unwrap()),
+            )
         })
-        .sum::<usize>()
+        .collect::<Vec<_>>()
 }
 
-fn solve_part2(input: &str) -> usize {
+fn solve_part1(input: &str) -> (usize, Duration) {
+    let timer = Instant::now();
+    let games = parse_part1(input);
+    let parse_duration = timer.elapsed();
+    (
+        games
+            .iter()
+            .map(|&(opponent_shape, my_shape)| score(my_shape, outcome(opponent_shape, my_shape)))
+            .sum::<usize>(),
+        parse_duration,
+    )
+}
+
+fn parse_part2(input: &str) -> Vec<(Shape, Outcome)> {
     input
         .lines()
         .map(|line| {
-            let opponent_shape = Shape::from(line.chars().next().unwrap());
-            let desired_outcome = Outcome::from(line.chars().nth(2).unwrap());
-            let my_shape = desired_outcome.manifest(opponent_shape);
-            score(my_shape, desired_outcome)
+            (
+                Shape::from(line.chars().next().unwrap()),
+                Outcome::from(line.chars().nth(2).unwrap()),
+            )
         })
-        .sum::<usize>()
+        .collect::<Vec<_>>()
+}
+
+fn solve_part2(input: &str) -> (usize, Duration) {
+    let timer = Instant::now();
+    let games = parse_part2(input);
+    let parse_duration = timer.elapsed();
+    (
+        games
+            .iter()
+            .map(|&(opponent_shape, desired_outcome)| {
+                score(desired_outcome.manifest(opponent_shape), desired_outcome)
+            })
+            .sum::<usize>(),
+        parse_duration,
+    )
 }
 
 pub(crate) fn solve() -> (usize, usize, Duration) {
-    (solve_part1(INPUT), solve_part2(INPUT), Duration::new(0, 0))
+    let part1 = solve_part1(INPUT);
+    let part2 = solve_part2(INPUT);
+    (part1.0, part2.0, part1.1 + part2.1)
 }
