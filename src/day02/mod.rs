@@ -41,12 +41,41 @@ enum Outcome {
     Draw,
 }
 
+impl From<char> for Outcome {
+    fn from(c: char) -> Self {
+        match c {
+            'X' => Outcome::Loss,
+            'Y' => Outcome::Draw,
+            'Z' => Outcome::Win,
+            _ => panic!(),
+        }
+    }
+}
+
 impl From<Outcome> for usize {
     fn from(outcome: Outcome) -> Self {
         match outcome {
             Outcome::Win => 6,
             Outcome::Loss => 0,
             Outcome::Draw => 3,
+        }
+    }
+}
+
+impl Outcome {
+    fn manifest(self, opponent_shape: Shape) -> Shape {
+        match self {
+            Outcome::Win => match opponent_shape {
+                Shape::Rock => Shape::Paper,
+                Shape::Paper => Shape::Scissors,
+                Shape::Scissors => Shape::Rock,
+            },
+            Outcome::Loss => match opponent_shape {
+                Shape::Rock => Shape::Scissors,
+                Shape::Paper => Shape::Rock,
+                Shape::Scissors => Shape::Paper,
+            },
+            Outcome::Draw => opponent_shape,
         }
     }
 }
@@ -71,25 +100,33 @@ fn outcome(opponent_shape: Shape, my_shape: Shape) -> Outcome {
     }
 }
 
+fn score(my_shape: Shape, outcome: Outcome) -> usize {
+    usize::from(my_shape) + usize::from(outcome)
+}
+
 fn solve_part1(input: &str) -> usize {
     input
         .lines()
         .map(|line| {
-            let opponent_shape = Shape::from(line.chars().nth(0).unwrap());
+            let opponent_shape = Shape::from(line.chars().next().unwrap());
             let my_shape = Shape::from(line.chars().nth(2).unwrap());
-            usize::from(my_shape) + usize::from(outcome(opponent_shape, my_shape))
+            score(my_shape, outcome(opponent_shape, my_shape))
         })
         .sum::<usize>()
 }
 
 fn solve_part2(input: &str) -> usize {
-    0
+    input
+        .lines()
+        .map(|line| {
+            let opponent_shape = Shape::from(line.chars().next().unwrap());
+            let desired_outcome = Outcome::from(line.chars().nth(2).unwrap());
+            let my_shape = desired_outcome.manifest(opponent_shape);
+            score(my_shape, desired_outcome)
+        })
+        .sum::<usize>()
 }
 
 pub(crate) fn solve() -> (usize, usize, Duration) {
-    (
-        solve_part1(&INPUT),
-        solve_part2(&INPUT),
-        Duration::new(0, 0),
-    )
+    (solve_part1(INPUT), solve_part2(INPUT), Duration::new(0, 0))
 }
