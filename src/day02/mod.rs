@@ -63,7 +63,7 @@ impl From<Outcome> for usize {
 }
 
 impl Outcome {
-    fn manifest(self, opponent_shape: Shape) -> Shape {
+    const fn manifest(self, opponent_shape: Shape) -> Shape {
         match self {
             Outcome::Win => match opponent_shape {
                 Shape::Rock => Shape::Paper,
@@ -80,7 +80,7 @@ impl Outcome {
     }
 }
 
-fn outcome(opponent_shape: Shape, my_shape: Shape) -> Outcome {
+const fn outcome(opponent_shape: Shape, my_shape: Shape) -> Outcome {
     match opponent_shape {
         Shape::Rock => match my_shape {
             Shape::Rock => Outcome::Draw,
