@@ -30,7 +30,39 @@ fn solve_part1(input: &str) -> usize {
 }
 
 fn solve_part2(input: &str) -> usize {
-    0
+    let line_count = input.lines().count();
+    let mut lines = input.lines();
+    let mut i = 0;
+    let mut sum = 0;
+
+    while i != line_count {
+        let a = lines.next().unwrap();
+        let b = lines.next().unwrap();
+        let c = lines.next().unwrap();
+
+        let mut found = false;
+        for x in a.chars() {
+            for y in b.chars() {
+                if x != y {
+                    continue;
+                }
+                if c.chars().any(|z| z == y) {
+                    sum += priority(x) as usize;
+                    found = true;
+                    break;
+                }
+                if found {
+                    break;
+                }
+            }
+            if found {
+                break;
+            }
+        }
+
+        i += 3;
+    }
+    sum
 }
 
 pub(crate) fn solve() -> (usize, usize, Duration) {

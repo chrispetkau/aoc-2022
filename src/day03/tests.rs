@@ -15,6 +15,6 @@ fn part1() {
 
 #[test]
 fn part2() {
-    // assert_eq!(230, solve_part2(INPUT.0, &INPUT.1));
-    // assert_eq!(3765399, solve_part2(input::INPUT.0, &input::INPUT.1));
+    assert_eq!(70, solve_part2(INPUT));
+    assert_eq!(2817, solve_part2(input::INPUT));
 }
