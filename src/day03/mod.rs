@@ -1,5 +1,5 @@
 use self::input::INPUT;
-use std::{cmp::Ordering, ops::Range, time::Duration};
+use std::{collections::HashSet, time::Duration};
 
 mod input;
 
@@ -15,16 +15,17 @@ fn priority(c: char) -> u8 {
 }
 
 fn solve_part1(input: &str) -> usize {
+    let mut items = HashSet::new();
     input
         .lines()
         .map(|line| {
             let (a, b) = line.split_at(line.len() / 2);
-            let duplicate = a
-                .chars()
-                .find_map(|c| b.chars().find(|&b_c| c == b_c))
-                .unwrap();
-            let priority_of_duplicate = priority(duplicate);
-            priority_of_duplicate as usize
+            items.clear();
+            a.chars().for_each(|x| {
+                items.insert(x);
+            });
+            let duplicate = b.chars().find(|x| items.contains(x)).unwrap();
+            priority(duplicate) as usize
         })
         .sum::<usize>()
 }
@@ -35,30 +36,26 @@ fn solve_part2(input: &str) -> usize {
     let mut i = 0;
     let mut sum = 0;
 
+    let mut a_items = HashSet::new();
+    let mut b_items = HashSet::new();
     while i != line_count {
         let a = lines.next().unwrap();
         let b = lines.next().unwrap();
         let c = lines.next().unwrap();
 
-        let mut found = false;
-        for x in a.chars() {
-            for y in b.chars() {
-                if x != y {
-                    continue;
-                }
-                if c.chars().any(|z| z == y) {
-                    sum += priority(x) as usize;
-                    found = true;
-                    break;
-                }
-                if found {
-                    break;
-                }
-            }
-            if found {
-                break;
-            }
-        }
+        a_items.clear();
+        a.chars().for_each(|x| {
+            a_items.insert(x);
+        });
+        b_items.clear();
+        b.chars().for_each(|x| {
+            b_items.insert(x);
+        });
+        let duplicate = c
+            .chars()
+            .find(|x| a_items.contains(x) && b_items.contains(x))
+            .unwrap();
+        sum += priority(duplicate) as usize;
 
         i += 3;
     }
