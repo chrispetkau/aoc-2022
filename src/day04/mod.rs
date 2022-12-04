@@ -29,6 +29,12 @@ impl FromStr for Range {
     }
 }
 
+impl Range {
+    fn overlaps(&self, other: &Range) -> bool {
+        !(self.from > other.to || self.to < other.from)
+    }
+}
+
 fn symmetric_contains(a: &Range, b: &Range) -> bool {
     if a.from <= b.from {
         if a.to >= b.to {
@@ -48,7 +54,7 @@ fn symmetric_contains(a: &Range, b: &Range) -> bool {
 fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
     let timer = Instant::now();
     let parse_duration = timer.elapsed();
-    let overlap_count = input
+    let part1 = input
         .lines()
         .filter(|line| {
             let mut elves = line.split(',').map(|s| s.parse::<Range>());
@@ -58,7 +64,18 @@ fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
             )
         })
         .count();
-    Ok((overlap_count, 0, parse_duration))
+    let part2 = input
+        .lines()
+        .filter(|line| {
+            let mut elves = line.split(',').map(|s| s.parse::<Range>());
+            elves
+                .next()
+                .unwrap()
+                .unwrap()
+                .overlaps(&elves.next().unwrap().unwrap())
+        })
+        .count();
+    Ok((part1, part2, parse_duration))
 }
 
 // TODO figure out why this is so much slower than Chris Ozeroff's solution
