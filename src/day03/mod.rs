@@ -1,5 +1,5 @@
 use self::input::INPUT;
-use std::{cmp::Ordering, ops::Range, time::Duration};
+use std::time::Duration;
 
 mod input;
 
