@@ -65,17 +65,34 @@ pub(crate) fn parse(input: &str) -> Result<(Vec<Stack>, Vec<Step>)> {
 }
 
 pub(crate) fn solve_for(stacks: &mut [Stack], steps: &[Step]) -> (String, String) {
+    let mut part1_stacks = Vec::from(stacks);
+    let mut part2_stacks = part1_stacks.clone(); // TODO should be able to use stacks directly
+
     steps.iter().for_each(|step| {
         (0..step.count).for_each(|_| {
-            let c = stacks[step.from].pop().unwrap();
-            stacks[step.to].push(c);
+            let c = part1_stacks[step.from].pop().unwrap();
+            part1_stacks[step.to].push(c);
         });
     });
-    let part1 = stacks
+    let part1 = part1_stacks
         .iter()
         .map(|stack| stack.last().unwrap())
         .collect::<String>();
-    (part1, "".to_owned())
+
+    steps.iter().for_each(|step| {
+        let popped = part2_stacks[step.from].iter().copied().rev().take(step.count).rev().collect::<Vec<_>>();
+        part2_stacks[step.to].extend(popped);
+
+        let from = &mut part2_stacks[step.from];
+        let from_len = from.len();
+        from.resize(from_len - step.count, ' ');
+    });
+    let part2 = part2_stacks
+        .iter()
+        .map(|stack| stack.last().unwrap())
+        .collect::<String>();
+
+    (part1, part2)
 }
 
 pub(crate) fn solve() -> (String, String, Duration) {

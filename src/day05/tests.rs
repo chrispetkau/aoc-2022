@@ -23,7 +23,9 @@ fn part1() {
 
 #[test]
 fn part2() {
-    // TODO make spans solution work
-    //assert_eq!(12, span_solution::solve_for(&super::parse(INPUT).unwrap()).1);
-    //assert_eq!(18423, span_solution::solve_for(&super::parse(input::INPUT).unwrap()).1);
+    let (mut example_stacks, example_steps) = parse(INPUT).unwrap();
+    assert_eq!("MCD", solve_for(&mut example_stacks, &example_steps).1);
+
+    let (mut stacks, steps) = parse(input::INPUT).unwrap();
+    assert_eq!("GGNPJBTTR", solve_for(&mut stacks, &steps).1);
 }
