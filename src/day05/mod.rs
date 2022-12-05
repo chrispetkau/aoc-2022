@@ -50,7 +50,7 @@ pub(crate) fn parse(input: &str) -> Result<(Vec<Stack>, Vec<Step>)> {
             .zip(crates)
             .for_each(|(stack, stacked_crate)| stack.push(stacked_crate));
     });
-    // Remove the stack numbers and invert the stacks.
+    // Remove the stack numbers, invert the stacks, and remove the empty elements.
     stacks.iter_mut().for_each(|stack| {
         stack.pop();
         stack.reverse();
@@ -80,7 +80,13 @@ pub(crate) fn solve_for(stacks: &mut [Stack], steps: &[Step]) -> (String, String
         .collect::<String>();
 
     steps.iter().for_each(|step| {
-        let popped = part2_stacks[step.from].iter().copied().rev().take(step.count).rev().collect::<Vec<_>>();
+        let popped = part2_stacks[step.from]
+            .iter()
+            .copied()
+            .rev()
+            .take(step.count)
+            .rev()
+            .collect::<Vec<_>>();
         part2_stacks[step.to].extend(popped);
 
         let from = &mut part2_stacks[step.from];
@@ -98,13 +104,9 @@ pub(crate) fn solve_for(stacks: &mut [Stack], steps: &[Step]) -> (String, String
 pub(crate) fn solve() -> (String, String, Duration) {
     let timer = Instant::now();
     let parsed = parse(INPUT);
-    println!("{:#?}", parsed.as_ref().unwrap().0);
     let parse_duration = Instant::now() - timer;
     let (part1, part2) = match parsed {
-        Ok((mut stacks, steps)) => {
-            solve_for(&mut stacks, &steps)
-            //span_solution::solve_for(lines)
-        }
+        Ok((mut stacks, steps)) => solve_for(&mut stacks, &steps),
         Err(error) => {
             println!("day 5 error: {}", error);
             ("".to_owned(), "".to_owned())
