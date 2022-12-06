@@ -33,7 +33,7 @@ chrono = "0.4.23"
 #     "day15",
 #     "day16",
 # ]
-default = ["day05"]
+default = ["day06"]
 day01 = []
 day02 = []
 day03 = []
