@@ -12,5 +12,10 @@ fn part1() {
 
 #[test]
 fn part2() {
-    // assert_eq!(1687617803407, solve_for(&input::INPUT, &[256])[0]);
+    assert_eq!(19, solve_for("mjqjpqmgbljsphdztnvjfqwrcgsmlb").1);
+    assert_eq!(23, solve_for("bvwbjplbgvbhsrlpgdmjqwftvncz").1);
+    assert_eq!(23, solve_for("nppdvjthqldpwncqszvftbrmjlhg").1);
+    assert_eq!(29, solve_for("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg").1);
+    assert_eq!(26, solve_for("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw").1);
+    assert_eq!(3986, solve_for(input::INPUT).1);
 }
