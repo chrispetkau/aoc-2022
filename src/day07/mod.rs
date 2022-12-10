@@ -236,7 +236,7 @@ pub(crate) fn find_folder(root: Rc<RefCell<Folder>>, name: &str) -> Option<Rc<Re
 
 fn collect_folders(
     folder: Rc<RefCell<Folder>>,
-    predicate: fn(&Folder) -> bool,
+    predicate: &dyn Fn(&Folder) -> bool,
     folders: &mut Vec<Rc<RefCell<Folder>>>,
 ) {
     if predicate(&(*folder).borrow()) {
@@ -253,14 +253,29 @@ fn solve_for(input: &str) -> (usize, usize) {
     let root = deduce_file_system(input);
     let mut small_folders = vec![];
     collect_folders(
-        root,
-        |folder: &Folder| folder.size.unwrap() <= 100000,
+        root.clone(),
+        &|folder: &Folder| folder.size.unwrap() <= 100000,
         &mut small_folders,
     );
     let part1 = small_folders.iter().fold(0, |current, folder| {
         current + (*folder).borrow().size.unwrap()
     });
-    (part1, 0)
+
+    let unused_space = 70_000_000 - (*root).borrow().size.unwrap();
+    let need_to_free = 30_000_000 - unused_space;
+    let mut large_enough_folders = vec![];
+    collect_folders(
+        root,
+        &|folder: &Folder| folder.size.unwrap() >= need_to_free,
+        &mut large_enough_folders,
+    );
+    let best_folder = large_enough_folders
+        .iter()
+        .min_by_key(|folder| (*folder).borrow().size.unwrap())
+        .unwrap();
+    let part2 = (*best_folder).borrow().size.unwrap();
+    
+    (part1, part2)
 }
 
 pub(crate) fn solve() -> (usize, usize, Duration) {
