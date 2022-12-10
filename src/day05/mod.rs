@@ -65,6 +65,7 @@ pub(crate) fn parse(input: &str) -> Result<(Vec<Stack>, Vec<Step>)> {
 }
 
 pub(crate) fn solve_for(stacks: &mut [Stack], steps: &[Step]) -> (String, String) {
+    #[allow(clippy::useless_asref)]
     let mut part1_stacks = Vec::from(stacks.as_mut());
     let part2_stacks = stacks;
 
