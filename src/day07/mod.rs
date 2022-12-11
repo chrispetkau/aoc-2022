@@ -1,7 +1,13 @@
 use self::input::INPUT;
 use anyhow::{anyhow, Result};
 use std::{
-    cell::RefCell, collections::HashMap, num::ParseIntError, rc::Rc, str::FromStr, time::Duration,
+    cell::RefCell,
+    collections::{hash_map::DefaultHasher, HashSet},
+    hash::{Hash, Hasher},
+    num::ParseIntError,
+    rc::Rc,
+    str::FromStr,
+    time::Duration,
 };
 
 mod input;
@@ -29,7 +35,7 @@ impl FromStr for File {
 #[derive(Clone, Debug)]
 pub(crate) struct Folder {
     name: String,
-    items: HashMap<String, Item>,
+    items: HashSet<Item>,
     size: Option<usize>,
     parent: Option<FolderPtr>,
 }
@@ -57,7 +63,7 @@ impl Folder {
     fn new(name: String, parent: Option<FolderPtr>) -> Self {
         Self {
             name,
-            items: HashMap::new(),
+            items: HashSet::new(),
             size: None,
             parent,
         }
@@ -68,6 +74,25 @@ impl Folder {
 enum Item {
     Folder(FolderPtr),
     File(File),
+}
+
+impl PartialEq for Item {
+    fn eq(&self, other: &Self) -> bool {
+        self.make_id() == other.make_id()
+    }
+}
+
+impl Eq for Item {
+    fn assert_receiver_is_total_eq(&self) {}
+}
+
+impl Hash for Item {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Item::Folder(folder) => folder.borrow().name.hash(state),
+            Item::File(file) => file.name.hash(state),
+        }
+    }
 }
 
 impl FromStr for Item {
@@ -83,12 +108,17 @@ impl FromStr for Item {
 }
 
 impl Item {
-    fn get_name(&self) -> String {
-        match self {
-            Item::Folder(folder) => folder.borrow().name.to_owned(),
-            Item::File(file) => file.name.to_owned(),
-        }
+    fn make_id(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
     }
+}
+
+fn make_id(s: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    s.hash(&mut hasher);
+    hasher.finish()
 }
 
 #[derive(Clone, Debug)]
@@ -148,20 +178,20 @@ fn deduce_file_system_structure(input: &str) -> FolderPtr {
         if let Ok(Command::ChangeDirectory(target)) = line.parse::<Command>() {
             match target {
                 ChangeDirectoryTarget::In(sub_folder) => {
-                    let s;
+                    let sub_folder_id = make_id(&sub_folder);
+                    let temp;
                     if let Item::Folder(new_folder) = current_folder
                         .borrow()
                         .items
                         .iter()
-                        .find(|(_, item)| item.get_name() == sub_folder)
+                        .find(|item| item.make_id() == sub_folder_id)
                         .unwrap()
-                        .1
                     {
-                        s = new_folder.clone();
+                        temp = new_folder.clone();
                     } else {
                         panic!();
                     }
-                    current_folder = s;
+                    current_folder = temp;
                 }
                 ChangeDirectoryTarget::Out => {
                     let parent = current_folder.borrow().parent.as_ref().unwrap().clone();
@@ -170,10 +200,7 @@ fn deduce_file_system_structure(input: &str) -> FolderPtr {
                 ChangeDirectoryTarget::Root => current_folder = root.clone(),
             }
         } else if let Ok(item) = line.parse::<Item>() {
-            current_folder
-                .borrow_mut()
-                .items
-                .insert(item.get_name().to_owned(), item.clone());
+            current_folder.borrow_mut().items.insert(item.clone());
 
             if let Item::Folder(sub_folder) = item {
                 sub_folder.borrow_mut().parent = Some(current_folder.clone());
@@ -188,7 +215,7 @@ fn inject_folder_sizes(folder: FolderPtr) -> usize {
     if let Some(size) = b_size {
         size
     } else {
-        let size = folder.borrow().items.iter().fold(0, |current, (_, item)| {
+        let size = folder.borrow().items.iter().fold(0, |current, item| {
             current
                 + match item {
                     Item::Folder(sub_folder) => inject_folder_sizes(sub_folder.clone()),
@@ -211,7 +238,7 @@ pub(crate) fn find_folder(root: FolderPtr, name: &str) -> Option<FolderPtr> {
     if root.borrow().name == name {
         Some(root)
     } else {
-        root.borrow().items.iter().find_map(|(_, item)| match item {
+        root.borrow().items.iter().find_map(|item| match item {
             Item::Folder(sub_folder) => {
                 if sub_folder.borrow().name == name {
                     Some(sub_folder.clone())
@@ -232,7 +259,7 @@ fn collect_folders(
     if predicate(&folder.borrow()) {
         folders.push(folder.clone());
     }
-    folder.borrow().items.iter().for_each(|(_, item)| {
+    folder.borrow().items.iter().for_each(|item| {
         if let Item::Folder(sub_folder) = item {
             collect_folders(sub_folder.clone(), predicate, folders)
         }
