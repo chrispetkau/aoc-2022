@@ -31,8 +31,12 @@ pub(crate) struct Folder {
     name: String,
     items: HashMap<String, Item>,
     size: Option<usize>,
-    parent: Option<Rc<RefCell<Folder>>>,
+    parent: Option<FolderPtr>,
 }
+
+// RefCell so we can mutate it within the Item enum without replacing it.
+// Rc so we can have both child and parent pointers to the same folder.
+type FolderPtr = Rc<RefCell<Folder>>;
 
 impl FromStr for Folder {
     type Err = anyhow::Error;
@@ -50,7 +54,7 @@ impl FromStr for Folder {
 }
 
 impl Folder {
-    fn new(name: String, parent: Option<Rc<RefCell<Folder>>>) -> Self {
+    fn new(name: String, parent: Option<FolderPtr>) -> Self {
         Self {
             name,
             items: HashMap::new(),
@@ -62,7 +66,7 @@ impl Folder {
 
 #[derive(Clone, Debug)]
 enum Item {
-    Folder(Rc<RefCell<Folder>>),
+    Folder(FolderPtr),
     File(File),
 }
 
@@ -137,36 +141,33 @@ impl FromStr for Command {
 
 pub(crate) const ROOT: &str = "/";
 
-fn deduce_file_system_structure(input: &str) -> Rc<RefCell<Folder>> {
+fn deduce_file_system_structure(input: &str) -> FolderPtr {
     let root = Rc::new(RefCell::new(Folder::new(ROOT.to_owned(), None)));
     let mut current_folder = root.clone();
     for line in input.lines() {
-        if let Ok(command) = line.parse::<Command>() {
-            match command {
-                Command::ChangeDirectory(target) => match target {
-                    ChangeDirectoryTarget::In(sub_folder) => {
-                        let s;
-                        if let Item::Folder(new_folder) = current_folder
-                            .borrow()
-                            .items
-                            .iter()
-                            .find(|(_, item)| item.get_name() == sub_folder)
-                            .unwrap()
-                            .1
-                        {
-                            s = new_folder.clone();
-                        } else {
-                            panic!();
-                        }
-                        current_folder = s;
+        if let Ok(Command::ChangeDirectory(target)) = line.parse::<Command>() {
+            match target {
+                ChangeDirectoryTarget::In(sub_folder) => {
+                    let s;
+                    if let Item::Folder(new_folder) = current_folder
+                        .borrow()
+                        .items
+                        .iter()
+                        .find(|(_, item)| item.get_name() == sub_folder)
+                        .unwrap()
+                        .1
+                    {
+                        s = new_folder.clone();
+                    } else {
+                        panic!();
                     }
-                    ChangeDirectoryTarget::Out => {
-                        let parent = current_folder.borrow().parent.as_ref().unwrap().clone();
-                        current_folder = parent;
-                    }
-                    ChangeDirectoryTarget::Root => current_folder = root.clone(),
-                },
-                Command::List => {}
+                    current_folder = s;
+                }
+                ChangeDirectoryTarget::Out => {
+                    let parent = current_folder.borrow().parent.as_ref().unwrap().clone();
+                    current_folder = parent;
+                }
+                ChangeDirectoryTarget::Root => current_folder = root.clone(),
             }
         } else if let Ok(item) = line.parse::<Item>() {
             current_folder
@@ -182,7 +183,7 @@ fn deduce_file_system_structure(input: &str) -> Rc<RefCell<Folder>> {
     root
 }
 
-fn inject_folder_sizes(folder: Rc<RefCell<Folder>>) -> usize {
+fn inject_folder_sizes(folder: FolderPtr) -> usize {
     let b_size = folder.borrow().size;
     if let Some(size) = b_size {
         size
@@ -199,14 +200,14 @@ fn inject_folder_sizes(folder: Rc<RefCell<Folder>>) -> usize {
     }
 }
 
-pub(crate) fn deduce_file_system(input: &str) -> Rc<RefCell<Folder>> {
+pub(crate) fn deduce_file_system(input: &str) -> FolderPtr {
     let root = deduce_file_system_structure(input);
     inject_folder_sizes(root.clone());
     root
 }
 
 #[cfg(test)]
-pub(crate) fn find_folder(root: Rc<RefCell<Folder>>, name: &str) -> Option<Rc<RefCell<Folder>>> {
+pub(crate) fn find_folder(root: FolderPtr, name: &str) -> Option<FolderPtr> {
     if root.borrow().name == name {
         Some(root)
     } else {
@@ -224,9 +225,9 @@ pub(crate) fn find_folder(root: Rc<RefCell<Folder>>, name: &str) -> Option<Rc<Re
 }
 
 fn collect_folders(
-    folder: Rc<RefCell<Folder>>,
+    folder: FolderPtr,
     predicate: &dyn Fn(&Folder) -> bool,
-    folders: &mut Vec<Rc<RefCell<Folder>>>,
+    folders: &mut Vec<FolderPtr>,
 ) {
     if predicate(&folder.borrow()) {
         folders.push(folder.clone());
