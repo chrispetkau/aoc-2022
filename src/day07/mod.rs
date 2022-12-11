@@ -142,12 +142,11 @@ fn deduce_file_system_structure(input: &str) -> Rc<RefCell<Folder>> {
     let mut current_folder = root.clone();
     for line in input.lines() {
         if let Ok(command) = line.parse::<Command>() {
-            // println!("{line} -> {command:?}");
             match command {
                 Command::ChangeDirectory(target) => match target {
                     ChangeDirectoryTarget::In(sub_folder) => {
                         let s;
-                        if let Item::Folder(new_folder) = (*current_folder)
+                        if let Item::Folder(new_folder) = current_folder
                             .borrow()
                             .items
                             .iter()
@@ -162,7 +161,7 @@ fn deduce_file_system_structure(input: &str) -> Rc<RefCell<Folder>> {
                         current_folder = s;
                     }
                     ChangeDirectoryTarget::Out => {
-                        let parent = (*current_folder).borrow().parent.as_ref().unwrap().clone();
+                        let parent = current_folder.borrow().parent.as_ref().unwrap().clone();
                         current_folder = parent;
                     }
                     ChangeDirectoryTarget::Root => current_folder = root.clone(),
@@ -170,14 +169,13 @@ fn deduce_file_system_structure(input: &str) -> Rc<RefCell<Folder>> {
                 Command::List => {}
             }
         } else if let Ok(item) = line.parse::<Item>() {
-            // println!("    {line} -> {item:?}");
-            (*current_folder)
+            current_folder
                 .borrow_mut()
                 .items
                 .insert(item.get_name().to_owned(), item.clone());
 
             if let Item::Folder(sub_folder) = item {
-                (*sub_folder).borrow_mut().parent = Some(current_folder.clone());
+                sub_folder.borrow_mut().parent = Some(current_folder.clone());
             }
         }
     }
@@ -185,27 +183,18 @@ fn deduce_file_system_structure(input: &str) -> Rc<RefCell<Folder>> {
 }
 
 fn inject_folder_sizes(folder: Rc<RefCell<Folder>>) -> usize {
-    // println!("inject_folder_sizes for {}", (*folder).borrow().name);
     let b_size = folder.borrow().size;
     if let Some(size) = b_size {
         size
     } else {
-        let size = (*folder)
-            .borrow()
-            .items
-            .iter()
-            .fold(0, |current, (_, item)| {
-                current
-                    + match item {
-                        Item::Folder(sub_folder) => inject_folder_sizes(sub_folder.clone()),
-                        Item::File(file) => file.size,
-                    }
-            });
-        println!(
-            "computed size {size} for folder {}",
-            (*folder).borrow().name
-        );
-        (*folder).borrow_mut().size = Some(size);
+        let size = folder.borrow().items.iter().fold(0, |current, (_, item)| {
+            current
+                + match item {
+                    Item::Folder(sub_folder) => inject_folder_sizes(sub_folder.clone()),
+                    Item::File(file) => file.size,
+                }
+        });
+        folder.borrow_mut().size = Some(size);
         size
     }
 }
@@ -239,10 +228,10 @@ fn collect_folders(
     predicate: &dyn Fn(&Folder) -> bool,
     folders: &mut Vec<Rc<RefCell<Folder>>>,
 ) {
-    if predicate(&(*folder).borrow()) {
+    if predicate(&folder.borrow()) {
         folders.push(folder.clone());
     }
-    (*folder).borrow().items.iter().for_each(|(_, item)| {
+    folder.borrow().items.iter().for_each(|(_, item)| {
         if let Item::Folder(sub_folder) = item {
             collect_folders(sub_folder.clone(), predicate, folders)
         }
@@ -257,9 +246,9 @@ fn solve_for(input: &str) -> (usize, usize) {
         &|folder: &Folder| folder.size.unwrap() <= 100000,
         &mut small_folders,
     );
-    let part1 = small_folders.iter().fold(0, |current, folder| {
-        current + (*folder).borrow().size.unwrap()
-    });
+    let part1 = small_folders
+        .iter()
+        .fold(0, |current, folder| current + folder.borrow().size.unwrap());
 
     let unused_space = 70_000_000 - (*root).borrow().size.unwrap();
     let need_to_free = 30_000_000 - unused_space;
@@ -271,10 +260,10 @@ fn solve_for(input: &str) -> (usize, usize) {
     );
     let best_folder = large_enough_folders
         .iter()
-        .min_by_key(|folder| (*folder).borrow().size.unwrap())
+        .min_by_key(|folder| folder.borrow().size.unwrap())
         .unwrap();
-    let part2 = (*best_folder).borrow().size.unwrap();
-    
+    let part2 = best_folder.borrow().size.unwrap();
+
     (part1, part2)
 }
 
