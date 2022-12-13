@@ -20,7 +20,7 @@ struct Point {
 
 impl Point {
     fn manhattan_distance(&self) -> usize {
-        self.x.abs() as usize + self.y.abs() as usize
+        self.x.unsigned_abs() as usize + self.y.unsigned_abs() as usize
     }
 }
 
@@ -112,6 +112,21 @@ impl FromStr for Motion {
     }
 }
 
+fn move_knot(head: &Point, knot: &mut Point) -> bool {
+    let delta = *head - *knot;
+    let manhattan_distance = delta.manhattan_distance();
+    let close_enough =
+        manhattan_distance < 2 || (manhattan_distance == 2 && delta.x != 0 && delta.y != 0);
+    if !close_enough {
+        *knot += Point {
+            x: delta.x.clamp(-1, 1),
+            y: delta.y.clamp(-1, 1),
+        };
+        return true;
+    }
+    false
+}
+
 fn solve_for(input: &str) -> (usize, usize, Duration) {
     let timer = Instant::now();
     let motions = input
@@ -120,6 +135,7 @@ fn solve_for(input: &str) -> (usize, usize, Duration) {
         .collect::<Vec<_>>();
     let parse_duration = timer.elapsed();
 
+    // Part 1.
     let mut head = Point { x: 0, y: 0 };
     let mut tail = head;
     let mut visited = HashSet::new();
@@ -127,21 +143,33 @@ fn solve_for(input: &str) -> (usize, usize, Duration) {
     motions.iter().for_each(|motion| {
         (0..motion.distance).for_each(|_| {
             head += motion.direction;
-            let delta = head - tail;
-            let manhattan_distance = delta.manhattan_distance();
-            let close_enough =
-                manhattan_distance < 2 || (manhattan_distance == 2 && delta.x != 0 && delta.y != 0);
-            if !close_enough {
-                tail += Point {
-                    x: delta.x.clamp(-1, 1),
-                    y: delta.y.clamp(-1, 1),
-                };
+            if move_knot(&head, &mut tail) {
                 visited.insert(tail);
             }
         });
     });
+    let part1 = visited.len();
 
-    (visited.len(), 0, parse_duration)
+    // Part 2.
+    let mut knots = vec![Point { x: 0, y: 0 }; 10];
+    visited.clear();
+    visited.insert(knots[0]);
+    motions.iter().for_each(|motion| {
+        (0..motion.distance).for_each(|_| {
+            knots[0] += motion.direction;
+            head = knots[0];
+            (1..10).for_each(|i| {
+                let knot = &mut knots[i];
+                if move_knot(&head, knot) && i == 9 {
+                    visited.insert(*knot);
+                }
+                head = *knot;
+            });
+        });
+    });
+    let part2 = visited.len();
+
+    (part1, part2, parse_duration)
 }
 
 pub(crate) fn solve() -> (usize, usize, Duration) {
