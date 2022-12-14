@@ -1,6 +1,7 @@
 use self::input::INPUT;
 use anyhow::{anyhow, Result};
 use std::{
+    mem::swap,
     num::ParseIntError,
     ops::{Deref, DerefMut},
     str::FromStr,
@@ -91,12 +92,7 @@ enum Operation {
 impl FromStr for Operation {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut tokens = s
-            .split(':')
-            .nth(1)
-            .unwrap()
-            .split_whitespace()
-            .skip(3);
+        let mut tokens = s.split(':').nth(1).unwrap().split_whitespace().skip(3);
         match tokens.next().unwrap() {
             "+" => Ok(Self::Add(tokens.next().unwrap().parse::<Worry>()?)),
             "*" => Ok(if let Ok(worry) = tokens.next().unwrap().parse::<Worry>() {
@@ -106,6 +102,17 @@ impl FromStr for Operation {
             }),
             unhandled_op => Err(anyhow!("Unhandled op {unhandled_op}")),
         }
+    }
+}
+
+impl Operation {
+    fn apply(&self, item: &mut Item) {
+        let current = **item;
+        *item = match self {
+            Operation::Add(worry) => Item(current + **worry),
+            Operation::Mul(worry) => Item(current * **worry),
+            Operation::Square => Item(current * current),
+        };
     }
 }
 
@@ -149,11 +156,22 @@ impl FromStr for Test {
     }
 }
 
+impl Test {
+    fn apply(&self, item: &Item) -> MonkeyIndex {
+        if **item % self.divisible_by == 0 {
+            self.if_true
+        } else {
+            self.if_false
+        }
+    }
+}
+
 #[derive(Debug)]
 struct Monkey {
     items: Vec<Item>,
     operation: Operation,
     test: Test,
+    inspection_count: usize,
 }
 
 impl FromStr for Monkey {
@@ -180,22 +198,47 @@ impl FromStr for Monkey {
             items,
             operation,
             test,
+            inspection_count: 0,
         })
     }
 }
 
 fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
     let timer = Instant::now();
-    let monkeys = input
+    let mut monkeys = input
         .split("\n\n")
         .map(|monkey| monkey.parse::<Monkey>())
         .collect::<Result<Vec<Monkey>>>()?;
     let parse_duration = timer.elapsed();
 
-    println!("{monkeys:#?}");
+    // println!("{monkeys:?}");
 
-    let mut part1 = 0;
-    let mut part2 = 0;
+    (0..20).for_each(|_round| {
+        (0..monkeys.len()).for_each(|monkey_index| {
+            let monkey = &mut monkeys[monkey_index];
+            let mut items = vec![];
+            swap(&mut items, &mut monkey.items); // Take all items from the monkey.
+            let operation = monkey.operation;
+            let test = monkey.test;
+            monkey.inspection_count += items.len();
+            items.iter_mut().for_each(|item| {
+                operation.apply(item);
+                **item /= 3;
+                let recipient = test.apply(item);
+                monkeys[*recipient].items.push(*item);
+            });
+        });
+    });
+
+    monkeys.sort_unstable_by_key(|monkey| monkey.inspection_count);
+    let part1 = monkeys
+        .iter()
+        .rev()
+        .take(2)
+        .map(|monkey| monkey.inspection_count)
+        .product();
+
+    let part2 = 0;
 
     Ok((part1, part2, parse_duration))
 }

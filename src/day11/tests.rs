@@ -31,7 +31,7 @@ Starting items: 74
 #[test]
 fn part1() {
     assert_eq!(10605, solve_for(INPUT).unwrap().0);
-    // assert_eq!(1741, solve_for(input::INPUT).0);
+    assert_eq!(76728, solve_for(input::INPUT).unwrap().0);
 }
 
 #[test]
