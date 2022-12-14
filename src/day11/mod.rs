@@ -14,29 +14,6 @@ mod input;
 mod tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Item(usize);
-
-impl Deref for Item {
-    type Target = usize;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Item {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl FromStr for Item {
-    type Err = ParseIntError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(s.parse::<usize>()?))
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Worry(usize);
 
 impl Deref for Worry {
@@ -58,6 +35,8 @@ impl FromStr for Worry {
         Ok(Self(s.parse::<usize>()?))
     }
 }
+
+type Item = Worry;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct MonkeyIndex(usize);
@@ -109,9 +88,9 @@ impl Operation {
     fn apply(&self, item: &mut Item) {
         let current = **item;
         *item = match self {
-            Operation::Add(worry) => Item(current + **worry),
-            Operation::Mul(worry) => Item(current * **worry),
-            Operation::Square => Item(current * current),
+            Operation::Add(worry) => Worry(current + **worry),
+            Operation::Mul(worry) => Worry(current * **worry),
+            Operation::Square => Worry(current * current),
         };
     }
 }
@@ -166,7 +145,7 @@ impl Test {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Monkey {
     items: Vec<Item>,
     operation: Operation,
@@ -205,7 +184,7 @@ impl FromStr for Monkey {
 
 fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
     let timer = Instant::now();
-    let mut monkeys = input
+    let monkeys = input
         .split("\n\n")
         .map(|monkey| monkey.parse::<Monkey>())
         .collect::<Result<Vec<Monkey>>>()?;
@@ -213,9 +192,10 @@ fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
 
     // println!("{monkeys:?}");
 
+    let mut part1_monkeys = monkeys.clone();
     (0..20).for_each(|_round| {
         (0..monkeys.len()).for_each(|monkey_index| {
-            let monkey = &mut monkeys[monkey_index];
+            let monkey = &mut part1_monkeys[monkey_index];
             let mut items = vec![];
             swap(&mut items, &mut monkey.items); // Take all items from the monkey.
             let operation = monkey.operation;
@@ -225,20 +205,41 @@ fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
                 operation.apply(item);
                 **item /= 3;
                 let recipient = test.apply(item);
-                monkeys[*recipient].items.push(*item);
+                part1_monkeys[*recipient].items.push(*item);
             });
         });
     });
-
-    monkeys.sort_unstable_by_key(|monkey| monkey.inspection_count);
-    let part1 = monkeys
+    part1_monkeys.sort_unstable_by_key(|monkey| monkey.inspection_count);
+    let part1 = part1_monkeys
         .iter()
         .rev()
         .take(2)
         .map(|monkey| monkey.inspection_count)
         .product();
 
-    let part2 = 0;
+    let mut part2_monkeys = monkeys;
+    // (0..10000).for_each(|_round| {
+    //     (0..part2_monkeys.len()).for_each(|monkey_index| {
+    //         let monkey = &mut part2_monkeys[monkey_index];
+    //         let mut items = vec![];
+    //         swap(&mut items, &mut monkey.items); // Take all items from the monkey.
+    //         let operation = monkey.operation;
+    //         let test = monkey.test;
+    //         monkey.inspection_count += items.len();
+    //         items.iter_mut().for_each(|item| {
+    //             operation.apply(item);
+    //             let recipient = test.apply(item);
+    //             part2_monkeys[*recipient].items.push(*item);
+    //         });
+    //     });
+    // });
+    part2_monkeys.sort_unstable_by_key(|monkey| monkey.inspection_count);
+    let part2 = part2_monkeys
+        .iter()
+        .rev()
+        .take(2)
+        .map(|monkey| monkey.inspection_count)
+        .product();
 
     Ok((part1, part2, parse_duration))
 }

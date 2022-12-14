@@ -36,6 +36,6 @@ fn part1() {
 
 #[test]
 fn part2() {
-    // assert_eq!(195, solve_for(INPUT).1);
-    // assert_eq!(440, solve_for(input::INPUT).1);
+    assert_eq!(2713310158, solve_for(INPUT).unwrap().1);
+    // assert_eq!(440, solve_for(input::INPUT).unwrap()..1);
 }
