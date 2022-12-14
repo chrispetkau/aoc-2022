@@ -1,120 +1,126 @@
 use self::input::INPUT;
-use anyhow::{anyhow, Result};
-use std::time::Duration;
+use anyhow::Result;
+use std::{
+    num::ParseIntError,
+    ops::{Add, Sub},
+    str::FromStr,
+    time::{Duration, Instant},
+};
 
 mod input;
 
 #[cfg(test)]
 mod tests;
 
-const DELIMETERS: [(char, char, usize, usize); 4] = [
-    ('(', ')', 3, 1),
-    ('[', ']', 57, 2),
-    ('{', '}', 1197, 3),
-    ('<', '>', 25137, 4),
-];
-
-#[derive(Debug)]
-enum EvaluatedLine {
-    Correct,
-    Incomplete(Vec<char>),
-    Illegal(char),
+#[derive(Clone, Copy, Debug)]
+enum Instruction {
+    AddX(i32),
+    NoOp,
 }
 
-fn evaluate_line(line: &str) -> Result<EvaluatedLine> {
-    let mut stack = Vec::new();
-    for c in line.chars() {
-        if DELIMETERS.iter().any(|(open, _, _, _)| *open == c) {
-            stack.push(c);
-        } else if let Some((expected_open, _, _, _)) =
-            DELIMETERS.iter().find(|(_, close, _, _)| *close == c)
-        {
-            if let Some(actual_open) = stack.pop() {
-                if *expected_open != actual_open {
-                    return Ok(EvaluatedLine::Illegal(c));
-                }
-            }
-        } else {
-            return Err(anyhow!("Not a delimeter: [{}]", c));
+impl Instruction {
+    fn duration(&self) -> usize {
+        match self {
+            Instruction::AddX(_) => 2,
+            Instruction::NoOp => 1,
         }
     }
-    // If the stack is not-empty, we have an incomplete line.
-    Ok(if stack.is_empty() {
-        EvaluatedLine::Correct
-    } else {
-        stack.reverse();
-        EvaluatedLine::Incomplete(stack)
-    })
 }
 
-/// Return score associated with close_delimeter
-fn illegal_score(close_delimeter: char) -> Result<usize> {
-    DELIMETERS
-        .iter()
-        .find_map(|(_, close, illegal_score, _)| {
-            if *close == close_delimeter {
-                Some(*illegal_score)
-            } else {
-                None
+impl FromStr for Instruction {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut tokens = s.split_whitespace();
+        match tokens.next().unwrap() {
+            "addx" => Ok(Self::AddX(tokens.next().unwrap().parse::<i32>()?)),
+            "noop" => Ok(Self::NoOp),
+            _ => panic!(),
+        }
+    }
+}
+
+struct Cpu {
+    x: usize,
+    cycle: usize,
+    instructions: Option<Vec<Instruction>>,
+    instruction_index: usize,
+    elapsed_instruction_cycles: usize,
+}
+
+impl Default for Cpu {
+    fn default() -> Self {
+        Self {
+            x: 1,
+            cycle: 0,
+            instructions: None,
+            instruction_index: 0,
+            elapsed_instruction_cycles: 0,
+        }
+    }
+}
+
+impl Cpu {
+    fn signal_strength(&self) -> usize {
+        self.cycle.saturating_mul(self.x)
+    }
+
+    fn load(&mut self, instructions: Vec<Instruction>) {
+        self.instructions = Some(instructions);
+        self.x = 1;
+        self.instruction_index = 0;
+        self.elapsed_instruction_cycles = 0;
+    }
+
+    fn tick(&mut self) -> bool {
+        let instructions = self.instructions.as_ref().unwrap();
+        let instruction = &instructions[self.instruction_index];
+        if self.elapsed_instruction_cycles == instruction.duration() {
+            match instruction {
+                Instruction::AddX(v) => {
+                    self.x = ((self.x as i32) + *v) as usize;
+                }
+                Instruction::NoOp => {}
             }
-        })
-        .ok_or_else(|| anyhow!("Not a close delimeter: [{}]", close_delimeter))
-}
-
-fn completion_score(open_delimeter: char) -> Result<usize> {
-    DELIMETERS
-        .iter()
-        .find_map(|(open, _, _, completion_score)| {
-            if *open == open_delimeter {
-                Some(*completion_score)
-            } else {
-                None
-            }
-        })
-        .ok_or_else(|| anyhow!("Not a close delimeter: [{}]", open_delimeter))
-}
-
-fn completion_score_for_sequence(completion_sequence: &[char]) -> Result<usize> {
-    completion_sequence
-        .iter()
-        .try_fold(0, |current, close_delimeter| {
-            Ok((current * 5) + completion_score(*close_delimeter)?)
-        })
+            self.instruction_index += 1;
+            self.elapsed_instruction_cycles = 0;
+        }
+        self.elapsed_instruction_cycles += 1;
+        self.cycle += 1;
+        self.instruction_index != instructions.len()
+    }
 }
 
 fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
-    let evaluated_lines = input
+    let timer = Instant::now();
+    let instructions = input
         .lines()
-        .map(evaluate_line)
-        .collect::<Result<Vec<_>>>()?;
+        .map(|line| line.parse::<Instruction>())
+        .collect::<Result<Vec<Instruction>, ParseIntError>>()?;
+    let parse_duration = timer.elapsed();
 
-    let part1 = evaluated_lines
-        .iter()
-        .filter_map(|evaluated_line| {
-            if let EvaluatedLine::Illegal(c) = evaluated_line {
-                Some(illegal_score(*c))
-            } else {
-                None
-            }
-        })
-        .collect::<Result<Vec<_>>>()?
-        .iter()
-        .sum();
+    let mut cpu = Cpu::default();
+    let mut observation_cycle = 20;
+    const OBSERVATION_PERIOD: usize = 40;
+    let mut signal_strengths = vec![];
+    cpu.load(instructions);
+    loop {
+        if cpu.cycle == observation_cycle {
+            signal_strengths.push(cpu.signal_strength());
+            observation_cycle += OBSERVATION_PERIOD;
+        }
+        
+        // println!("[{}] x = {}, signal = {}", cpu.cycle, cpu.x, cpu.signal_strength());
 
-    let mut completion_scores = evaluated_lines
-        .iter()
-        .filter_map(|evaluated_line| {
-            if let EvaluatedLine::Incomplete(completion_sequence) = evaluated_line {
-                Some(completion_score_for_sequence(completion_sequence))
-            } else {
-                None
-            }
-        })
-        .collect::<Result<Vec<_>>>()?;
-    completion_scores.sort_unstable();
-    let part2 = completion_scores[completion_scores.len() / 2];
+        if !cpu.tick() {
+            break;
+        }
+    }
 
-    Ok((part1, part2, Duration::new(0, 0)))
+    let part1 = signal_strengths.iter().sum();
+    let part2 = 1;
+
+    Ok((part1, part2, parse_duration))
 }
 
 pub(crate) fn solve() -> (usize, usize, Duration) {
