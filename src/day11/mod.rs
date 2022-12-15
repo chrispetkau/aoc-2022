@@ -218,21 +218,26 @@ fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
         .product();
 
     let mut part2_monkeys = monkeys;
-    // (0..10000).for_each(|_round| {
-    //     (0..part2_monkeys.len()).for_each(|monkey_index| {
-    //         let monkey = &mut part2_monkeys[monkey_index];
-    //         let mut items = vec![];
-    //         swap(&mut items, &mut monkey.items); // Take all items from the monkey.
-    //         let operation = monkey.operation;
-    //         let test = monkey.test;
-    //         monkey.inspection_count += items.len();
-    //         items.iter_mut().for_each(|item| {
-    //             operation.apply(item);
-    //             let recipient = test.apply(item);
-    //             part2_monkeys[*recipient].items.push(*item);
-    //         });
-    //     });
-    // });
+    let test_aggregate: usize = part2_monkeys
+        .iter()
+        .map(|monkey| monkey.test.divisible_by)
+        .product();
+    (0..10000).for_each(|_round| {
+        (0..part2_monkeys.len()).for_each(|monkey_index| {
+            let monkey = &mut part2_monkeys[monkey_index];
+            let mut items = vec![];
+            swap(&mut items, &mut monkey.items); // Take all items from the monkey.
+            let operation = monkey.operation;
+            let test = monkey.test;
+            monkey.inspection_count += items.len();
+            items.iter_mut().for_each(|item| {
+                operation.apply(item);
+                **item %= test_aggregate;
+                let recipient = test.apply(item);
+                part2_monkeys[*recipient].items.push(*item);
+            });
+        });
+    });
     part2_monkeys.sort_unstable_by_key(|monkey| monkey.inspection_count);
     let part2 = part2_monkeys
         .iter()
