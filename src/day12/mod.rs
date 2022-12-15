@@ -10,126 +10,141 @@ mod input;
 #[cfg(test)]
 mod tests;
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-enum CaveSize {
-    Big,
-    Small,
+struct HeightMap {
+    width: usize,
+    height: usize,
+    data: Vec<u8>,
+    start: usize,
+    end: usize,
 }
 
-// TODO eugh...strings as ids...change this to a serial number and make this type Copy so we don't need to
-// explicitly clone() everywhere
-#[derive(Clone, PartialEq, Eq, Debug)]
-struct Cave(CaveSize, String);
-
-impl FromStr for Cave {
+impl FromStr for HeightMap {
     type Err = anyhow::Error;
-
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.chars().all(|c| c.is_ascii_lowercase()) {
-            Ok(Self(CaveSize::Small, String::from(s)))
-        } else if s.chars().all(|c| c.is_ascii_uppercase()) {
-            Ok(Self(CaveSize::Big, String::from(s)))
-        } else {
-            Err(anyhow!("Can't parse into CaveId: [{}]", s))
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-struct Tunnel(Cave, Cave);
-
-impl FromStr for Tunnel {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut caves = s.split('-');
-        Ok(Self(caves
-                .next()
-                .ok_or_else(|| anyhow!("Missing 'from' cave"))?
-                .parse::<Cave>()?, caves
-                .next()
-                .ok_or_else(|| anyhow!("Missing 'to' cave"))?
-                .parse::<Cave>()?))
-    }
-}
-
-fn count_paths(tunnels: &[Tunnel], permit_double_small_cave_traversal_once: bool) -> usize {
-    let start_cave = String::from("start");
-    let end_cave = String::from("end");
-
-    let mut pending_paths = tunnels
-        .iter()
-        .filter_map(|tunnel| {
-            if tunnel.0 .1 == start_cave {
-                Some((
-                    vec![tunnel.0.clone(), tunnel.1.clone()],
-                    !permit_double_small_cave_traversal_once,
-                ))
-            } else if tunnel.1 .1 == start_cave {
-                Some((
-                    vec![tunnel.1.clone(), tunnel.0.clone()],
-                    !permit_double_small_cave_traversal_once,
-                ))
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<(Vec<Cave>, bool)>>();
-    let mut paths = Vec::new();
-    while let Some(path) = pending_paths.pop() {
-        let from = path.0.last().unwrap();
-        if from.1 == end_cave {
-            paths.push(path);
-            continue;
-        }
-        tunnels
+        let width = s.lines().next().unwrap().chars().count();
+        let height = s.lines().count();
+        let mut data = s.lines().flat_map(|line| line.bytes()).collect::<Vec<_>>();
+        let start = data
             .iter()
-            .filter_map(|tunnel| {
-                if tunnel.0 == *from {
-                    Some(&tunnel.1)
-                } else if tunnel.1 == *from {
-                    Some(&tunnel.0)
-                } else {
-                    None
-                }
-            })
-            .filter_map(|cave| match cave {
-                Cave(CaveSize::Small, id) => {
-                    let traversed = path.0.contains(cave);
-                    if *id == start_cave || *id == end_cave || path.1 {
-                        if !traversed {
-                            Some((cave, false))
-                        } else {
-                            None
-                        }
-                    } else {
-                        Some((cave, traversed))
-                    }
-                }
-                _ => Some((cave, false)),
-            })
-            .for_each(|(to, use_double_small_cave_traversal)| {
-                let mut new_path = path.clone();
-                new_path.0.push(to.clone());
-                if use_double_small_cave_traversal {
-                    new_path.1 = true;
-                }
-                pending_paths.push(new_path);
-            });
+            .enumerate()
+            .find_map(|(index, c)| if *c == b'S' { Some(index) } else { None })
+            .unwrap();
+        data[start] = b'a';
+        let end = data
+            .iter()
+            .enumerate()
+            .find_map(|(index, c)| if *c == b'E' { Some(index) } else { None })
+            .unwrap();
+        data[end] = b'z';
+        Ok(Self {
+            width,
+            height,
+            data,
+            start,
+            end,
+        })
     }
-    paths.len()
+}
+
+impl HeightMap {
+    fn index(&self, x: usize, y: usize) -> usize {
+        x + y * self.width
+    }
+
+    fn get(&self, x: usize, y: usize) -> u8 {
+        self.data[self.index(x, y)]
+    }
+
+    fn xy_from_index(&self, index: usize) -> (usize, usize) {
+        (index % self.width, index / self.width)
+    }
+
+    fn can_traverse_to(&self, from: usize, to: usize) -> bool {
+        if let Some(step) = self.data[to].checked_sub(self.data[from]) {
+            step <= 1
+        } else {
+            true
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Path {
+    index: usize,
+    length: usize,
 }
 
 fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
     let parse_start = Instant::now();
-    let tunnels = input
-        .lines()
-        .map(|line| line.parse::<Tunnel>())
-        .collect::<Result<Vec<Tunnel>>>()?;
+    let height_map = input.parse::<HeightMap>()?;
     let parse_duration = Instant::now() - parse_start;
 
-    let part1 = count_paths(&tunnels, false);
-    let part2 = count_paths(&tunnels, true);
+    let mut visited = vec![false; height_map.data.len()];
+    visited[height_map.start] = true;
+    let mut paths = vec![Path {
+        index: height_map.start,
+        length: 0,
+    }];
+    let mut shortest_path_length = None;
+    while !paths.is_empty() {
+        let path = paths[0];
+
+        paths.remove(0); // TODO bad data structure
+        // visited[path.index] = true;
+
+        let from = height_map.xy_from_index(path.index);
+        let length = path.length + 1;
+
+        let mut add_path = |index: usize| {
+            if !visited[index] && height_map.can_traverse_to(path.index, index) {
+                if index == height_map.end {
+                    return Err(());
+                }
+                visited[index] = true;
+                paths.push(Path { index, length });
+            }
+            Ok(())
+        };
+
+        // north
+        if let Some(index) = path.index.checked_sub(height_map.width) {
+            if add_path(index).is_err() {
+                shortest_path_length = Some(length);
+                break;
+            }
+        }
+
+        // west
+        if let Some(index) = path.index.checked_sub(1) {
+            let to = height_map.xy_from_index(index);
+            // if the y is same
+            if from.1 == to.1 && add_path(index).is_err() {
+                shortest_path_length = Some(length);
+                break;
+            }
+        }
+
+        // south
+        let index = path.index + height_map.width;
+        if index < height_map.data.len() && add_path(index).is_err() {
+            shortest_path_length = Some(length);
+            break;
+        }
+
+        // east
+        let index = path.index + 1;
+        if index < height_map.data.len() {
+            let to = height_map.xy_from_index(index);
+            // if the y is same
+            if from.1 == to.1 && add_path(index).is_err() {
+                shortest_path_length = Some(length);
+                break;
+            }
+        }
+    }
+
+    let part1 = shortest_path_length.unwrap();
+    let part2 = 0;
     Ok((part1, part2, parse_duration))
 }
 
