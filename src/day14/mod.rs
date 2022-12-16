@@ -139,56 +139,8 @@ impl FromStr for Polyline {
     }
 }
 
-fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
-    let timer = Instant::now();
-    let polylines = input
-        .lines()
-        .map(|line| {
-            line.split(" -> ")
-                .map(|point| point.parse::<Point>())
-                .collect::<Result<Vec<_>, ParseIntError>>()
-        })
-        .collect::<Result<Vec<_>, ParseIntError>>()?;
-    let parse_duration = timer.elapsed();
-
-    let (x_min, x_max, y_max) = polylines.iter().flatten().fold(
-        (500, 500, 0),
-        |(mut x_min, mut x_max, mut y_max), point| {
-            if point.x < x_min {
-                x_min = point.x;
-            }
-            if x_max < point.x {
-                x_max = point.x;
-            }
-            if y_max < point.y {
-                y_max = point.y;
-            }
-            (x_min, x_max, y_max)
-        },
-    );
-    let width = x_max - x_min + 1;
-    let height = y_max + 1;
-    let mut grid = vec![false; width * height];
-
+fn simulate(width: usize, height: usize, x_min: usize, grid: &mut [bool]) -> usize {
     let index = |point: &Point| (point.y * width) + (point.x - x_min);
-
-    // TODO double-parsing
-    let polylines = input
-        .lines()
-        .map(|line| line.parse::<Polyline>())
-        .collect::<Result<Vec<_>>>()?;
-    polylines.iter().for_each(|polyline| {
-        let mut point = polyline.start;
-        grid[index(&point)] = true;
-        polyline.segments.iter().for_each(|(direction, distance)| {
-            let delta = Vector::from(*direction);
-            (0..*distance).for_each(|_| {
-                point += delta;
-                grid[index(&point)] = true;
-            });
-        });
-    });
-
     const SAND_ENTRY_POINT: Point = Point { x: 500, y: 0 };
     let sand_entry_index = index(&SAND_ENTRY_POINT);
     let mut count = 0;
@@ -231,9 +183,85 @@ fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
             break;
         }
     }
+    count
+}
 
-    let part1 = count;
-    let part2 = 1;
+fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
+    let timer = Instant::now();
+    let polylines = input
+        .lines()
+        .map(|line| {
+            line.split(" -> ")
+                .map(|point| point.parse::<Point>())
+                .collect::<Result<Vec<_>, ParseIntError>>()
+        })
+        .collect::<Result<Vec<_>, ParseIntError>>()?;
+    let parse_duration = timer.elapsed();
+
+    let (x_min, x_max, y_max) = polylines.iter().flatten().fold(
+        (500, 500, 0),
+        |(mut x_min, mut x_max, mut y_max), point| {
+            if point.x < x_min {
+                x_min = point.x;
+            }
+            if x_max < point.x {
+                x_max = point.x;
+            }
+            if y_max < point.y {
+                y_max = point.y;
+            }
+            (x_min, x_max, y_max)
+        },
+    );
+    // Part 1 dimensions.
+    let width = x_max - x_min + 1;
+    let height = y_max + 1;
+
+    // Add floor for part 2, and inflate the grid accordingly.
+    let floor_depth = height + 2;
+    let floor_length = (floor_depth + 1) * 3; // arbitrary multiple just to ensure it is big enough
+    let inflation = floor_length - width;
+    let x_min = x_min - inflation / 2;
+    let width = floor_length;
+    let height = floor_depth;
+
+    let mut grid = vec![false; width * height];
+
+    let index = |point: &Point| (point.y * width) + (point.x - x_min);
+
+    // TODO double-parsing
+    let polylines = input
+        .lines()
+        .map(|line| line.parse::<Polyline>())
+        .collect::<Result<Vec<_>>>()?;
+
+    polylines.iter().for_each(|polyline| {
+        let mut point = polyline.start;
+        grid[index(&point)] = true;
+        // println!("{point:?}");
+        polyline.segments.iter().for_each(|(direction, distance)| {
+            // println!("{direction:?} {distance}");
+            let delta = Vector::from(*direction);
+            (0..*distance).for_each(|_| {
+                point += delta;
+                // println!("{point:?}");
+                grid[index(&point)] = true;
+            });
+        });
+    });
+
+    let part1 = simulate(width, height, x_min, &mut grid.clone());
+
+    let floor_start = Point {
+        x: x_min,
+        y: floor_depth - 1,
+    };
+    let start_index = index(&floor_start);
+    grid.iter_mut()
+        .skip(start_index)
+        .take(floor_length)
+        .for_each(|cell| *cell = true);
+    let part2 = simulate(width, height, x_min, &mut grid);
 
     Ok((part1, part2, parse_duration))
 }
