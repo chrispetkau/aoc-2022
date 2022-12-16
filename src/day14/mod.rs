@@ -1,5 +1,8 @@
+use anyhow::{anyhow, Result};
 use std::{
-    collections::HashMap,
+    num::ParseIntError,
+    ops::{Add, AddAssign, Sub},
+    str::FromStr,
     time::{Duration, Instant},
 };
 
@@ -10,78 +13,231 @@ mod input;
 #[cfg(test)]
 mod tests;
 
-fn solve_for((polymer_template, pair_insertion_rules): (&str, &str)) -> (usize, usize, Duration) {
-    let parse_start = Instant::now();
-    let polymer_template = polymer_template
-        .chars()
-        .map(|c| c as u8 - b'A')
-        .collect::<Vec<u8>>();
-    let pair_insertion_rules = pair_insertion_rules
-        .lines()
-        .map(|line| {
-            let mut rule = line.split(" -> ");
-            let mut pair = rule.next().unwrap().chars();
-            let element = rule.next().unwrap();
-            (
-                (
-                    pair.next().unwrap() as u8 - b'A',
-                    pair.next().unwrap() as u8 - b'A',
-                ),
-                element.chars().next().unwrap() as u8 - b'A',
-            )
-        })
-        .collect::<HashMap<(u8, u8), u8>>();
-    let parse_duration = parse_start.elapsed();
-
-    let mut part1 = 0;
-    const PART_1_STEP_COUNT: usize = 10;
-    const PART_2_STEP_COUNT: usize = 40;
-
-    let mut pairs_histogram = HashMap::new();
-    polymer_template
-        .iter()
-        .copied()
-        .zip(polymer_template.iter().copied().skip(1))
-        .for_each(|pair| {
-            *pairs_histogram.entry(pair).or_insert(0) += 1;
-        });
-    let last_element = *polymer_template.last().unwrap();
-    (0..PART_2_STEP_COUNT).for_each(|step| {
-        if step == PART_1_STEP_COUNT {
-            part1 = analyze_polymer(&pairs_histogram, last_element);
-        }
-        let previous_pairs_histogram = pairs_histogram.clone();
-        pairs_histogram.clear();
-        previous_pairs_histogram.iter().for_each(|(pair, count)| {
-            let inserted_element = pair_insertion_rules[pair];
-            *pairs_histogram
-                .entry((pair.0, inserted_element))
-                .or_insert(0) += count;
-            *pairs_histogram
-                .entry((inserted_element, pair.1))
-                .or_insert(0) += count;
-        });
-    });
-    let part2 = analyze_polymer(&pairs_histogram, last_element);
-
-    (part1, part2, parse_duration)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Point {
+    x: usize,
+    y: usize,
 }
 
-fn analyze_polymer(pairs_histogram: &HashMap<(u8, u8), usize>, last_element: u8) -> usize {
-    const ELEMENT_TYPE_COUNT: usize = 26;
-    let mut counts = vec![0; ELEMENT_TYPE_COUNT];
-    pairs_histogram
-        .iter()
-        .for_each(|(&pair, count)| counts[pair.0 as usize] += count);
-    counts[last_element as usize] += 1;
-    let non_zero_counts = counts.iter().filter(|&&element| element != 0);
-    let (min, max) = (
-        non_zero_counts.clone().copied().min().unwrap(),
-        non_zero_counts.copied().max().unwrap(),
+impl FromStr for Point {
+    type Err = ParseIntError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut tokens = s.split(',');
+        let x = tokens.next().unwrap().parse::<usize>()?;
+        let y = tokens.next().unwrap().parse::<usize>()?;
+        Ok(Self { x, y })
+    }
+}
+
+impl Sub for Point {
+    type Output = Vector;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::Output {
+            x: self.x as i32 - rhs.x as i32,
+            y: self.y as i32 - rhs.y as i32,
+        }
+    }
+}
+
+impl AddAssign<Vector> for Point {
+    fn add_assign(&mut self, rhs: Vector) {
+        self.x = (self.x as i32 + rhs.x) as usize;
+        self.y = (self.y as i32 + rhs.y) as usize;
+    }
+}
+
+// TODO any way to do this generically via Into?
+impl AddAssign<Direction> for Point {
+    fn add_assign(&mut self, rhs: Direction) {
+        *self += Vector::from(rhs)
+    }
+}
+
+impl Add<Vector> for Point {
+    type Output = Self;
+    fn add(self, rhs: Vector) -> Self::Output {
+        Self {
+            x: (self.x as i32 + rhs.x) as usize,
+            y: (self.y as i32 + rhs.y) as usize,
+        }
+    }
+}
+
+// TODO any way to do this generically via Into?
+impl Add<Direction> for Point {
+    type Output = Self;
+    fn add(self, rhs: Direction) -> Self::Output {
+        self + Vector::from(rhs)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Vector {
+    x: i32,
+    y: i32,
+}
+
+impl From<Direction> for Vector {
+    fn from(direction: Direction) -> Self {
+        match direction {
+            Direction::Up => Self { x: 0, y: -1 },
+            Direction::Down => Self { x: 0, y: 1 },
+            Direction::Left => Self { x: -1, y: 0 },
+            Direction::Right => Self { x: 1, y: 0 },
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+impl Direction {
+    fn from_vector(v: Vector) -> Option<Self> {
+        if v.x < 0 {
+            Some(Self::Left)
+        } else if v.x > 0 {
+            Some(Self::Right)
+        } else if v.y < 0 {
+            Some(Self::Up)
+        } else if v.y > 0 {
+            Some(Self::Down)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Polyline {
+    start: Point,
+    segments: Vec<(Direction, usize)>,
+}
+
+impl FromStr for Polyline {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut points = s.split(" -> ");
+        let start = points.next().unwrap().parse::<Point>()?;
+        let mut prev = start;
+        let segments = points
+            .map(|point| -> Result<(Direction, usize), anyhow::Error> {
+                let point = point.parse::<Point>()?;
+                let delta = point - prev;
+                prev = point;
+                let direction = Direction::from_vector(delta)
+                    .ok_or_else(|| anyhow!("Delta doesn't map to a Direction. Probably zero."))?;
+                let distance = (delta.x.abs() + delta.y.abs()) as usize;
+                Ok((direction, distance))
+            })
+            .collect::<Result<Vec<(Direction, usize)>, anyhow::Error>>()?;
+        Ok(Self { start, segments })
+    }
+}
+
+fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
+    let timer = Instant::now();
+    let polylines = input
+        .lines()
+        .map(|line| {
+            line.split(" -> ")
+                .map(|point| point.parse::<Point>())
+                .collect::<Result<Vec<_>, ParseIntError>>()
+        })
+        .collect::<Result<Vec<_>, ParseIntError>>()?;
+    let parse_duration = timer.elapsed();
+
+    let (x_min, x_max, y_max) = polylines.iter().flatten().fold(
+        (500, 500, 0),
+        |(mut x_min, mut x_max, mut y_max), point| {
+            if point.x < x_min {
+                x_min = point.x;
+            }
+            if x_max < point.x {
+                x_max = point.x;
+            }
+            if y_max < point.y {
+                y_max = point.y;
+            }
+            (x_min, x_max, y_max)
+        },
     );
-    max - min
+    let width = x_max - x_min + 1;
+    let height = y_max + 1;
+    let mut grid = vec![false; width * height];
+
+    let index = |point: &Point| (point.y * width) + (point.x - x_min);
+
+    // TODO double-parsing
+    let polylines = input
+        .lines()
+        .map(|line| line.parse::<Polyline>())
+        .collect::<Result<Vec<_>>>()?;
+    polylines.iter().for_each(|polyline| {
+        let mut point = polyline.start;
+        grid[index(&point)] = true;
+        polyline.segments.iter().for_each(|(direction, distance)| {
+            let delta = Vector::from(*direction);
+            (0..*distance).for_each(|_| {
+                point += delta;
+                grid[index(&point)] = true;
+            });
+        });
+    });
+
+    const SAND_ENTRY_POINT: Point = Point { x: 500, y: 0 };
+    let sand_entry_index = index(&SAND_ENTRY_POINT);
+    let mut count = 0;
+    loop {
+        if grid[sand_entry_index] {
+            break;
+        }
+        let mut sand = SAND_ENTRY_POINT;
+        let settled = loop {
+            if sand.y == height - 1 {
+                break false;
+            }
+            let below = sand + Direction::Down;
+            if !grid[index(&below)] {
+                sand = below;
+            } else {
+                if sand.x - x_min == 0 {
+                    break false;
+                }
+                let next = below + Direction::Left;
+                if !grid[index(&next)] {
+                    sand = next;
+                } else {
+                    if sand.x - x_min == width - 1 {
+                        break false;
+                    }
+                    let next = below + Direction::Right;
+                    if !grid[index(&next)] {
+                        sand = next;
+                    } else {
+                        break true;
+                    }
+                }
+            }
+        };
+        if settled {
+            grid[index(&sand)] = true;
+            count += 1;
+        } else {
+            break;
+        }
+    }
+
+    let part1 = count;
+    let part2 = 1;
+
+    Ok((part1, part2, parse_duration))
 }
 
 pub(crate) fn solve() -> (usize, usize, Duration) {
-    solve_for(INPUT)
+    solve_for(INPUT).unwrap()
 }

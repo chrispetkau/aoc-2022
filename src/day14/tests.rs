@@ -1,33 +1,16 @@
 use super::{input, solve_for};
 
-const INPUT: (&str, &str) = (
-    "NNCB",
-    "CH -> B
-HH -> N
-CB -> H
-NH -> C
-HB -> C
-HC -> B
-HN -> C
-NN -> C
-BH -> H
-NC -> B
-NB -> B
-BN -> B
-BB -> N
-BC -> B
-CC -> N
-CN -> C",
-);
+const INPUT: &str = "498,4 -> 498,6 -> 496,6
+503,4 -> 502,4 -> 502,9 -> 494,9";
 
 #[test]
 fn part1() {
-    assert_eq!(1588, solve_for(INPUT).0);
-    assert_eq!(2937, solve_for(input::INPUT).0);
+    assert_eq!(24, solve_for(INPUT).unwrap().0);
+    assert_eq!(698, solve_for(input::INPUT).unwrap().0);
 }
 
 #[test]
 fn part2() {
-    assert_eq!(2188189693529, solve_for(INPUT).1);
-    assert_eq!(3390034818249, solve_for(input::INPUT).1);
+    // assert_eq!(2188189693529, solve_for(INPUT).unwrap().1);
+    // assert_eq!(3390034818249, solve_for(input::INPUT).unwrap().1);
 }
