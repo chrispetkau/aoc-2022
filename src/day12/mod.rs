@@ -12,7 +12,6 @@ mod tests;
 
 struct HeightMap {
     width: usize,
-    height: usize,
     data: Vec<u8>,
     start: usize,
     end: usize,
@@ -22,7 +21,6 @@ impl FromStr for HeightMap {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let width = s.lines().next().unwrap().chars().count();
-        let height = s.lines().count();
         let mut data = s.lines().flat_map(|line| line.bytes()).collect::<Vec<_>>();
         let start = data
             .iter()
@@ -38,7 +36,6 @@ impl FromStr for HeightMap {
         data[end] = b'z';
         Ok(Self {
             width,
-            height,
             data,
             start,
             end,
@@ -47,14 +44,6 @@ impl FromStr for HeightMap {
 }
 
 impl HeightMap {
-    fn index(&self, x: usize, y: usize) -> usize {
-        x + y * self.width
-    }
-
-    fn get(&self, x: usize, y: usize) -> u8 {
-        self.data[self.index(x, y)]
-    }
-
     fn xy_from_index(&self, index: usize) -> (usize, usize) {
         (index % self.width, index / self.width)
     }

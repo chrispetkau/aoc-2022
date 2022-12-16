@@ -204,7 +204,34 @@ fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
         .filter_map(|(index, (lhs, rhs))| if lhs <= rhs { Some(index + 1) } else { None })
         .sum();
 
-    let part2 = 1;
+    let divider_packets = ["[[2]]", "[[6]]"]
+        .into_iter()
+        .map(|s| s.parse::<List>())
+        .collect::<Result<Vec<_>>>()?;
+    let mut packets: Vec<&List> = vec![];
+    let (lhs, rhs): (Vec<&List>, Vec<&List>) =
+        packet_pairs.iter().map(|(lhs, rhs)| (lhs, rhs)).unzip();
+    packets.extend(lhs);
+    packets.extend(rhs);
+    packets.extend(divider_packets.iter());
+    packets.sort_unstable();
+
+    let part2 = divider_packets
+        .iter()
+        .map(|divider_packet| {
+            packets
+                .iter()
+                .enumerate()
+                .find_map(|(index, packet)| {
+                    if **packet == *divider_packet {
+                        Some(index + 1)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap()
+        })
+        .product();
 
     Ok((part1, part2, parse_duration))
 }
