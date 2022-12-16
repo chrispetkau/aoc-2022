@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Result};
 use input::INPUT;
 use std::{
-    fmt::Display,
+    cmp::Ordering,
+    num::ParseIntError,
     str::FromStr,
     time::{Duration, Instant},
 };
@@ -11,217 +12,209 @@ mod input;
 #[cfg(test)]
 mod tests;
 
-#[derive(Copy, Clone, Debug)]
-struct Coord {
-    x: usize,
-    y: usize,
+/// An iterator over a string representing a list that can have lists as elements.
+#[derive(Clone, Debug)]
+struct ListIterator<'a> {
+    s: &'a str,
+    current: usize,
 }
 
-impl Coord {
-    fn new(x: usize, y: usize) -> Self {
-        Self { x, y }
+impl<'a> ListIterator<'a> {
+    fn new(s: &'a str) -> Result<Self> {
+        if !s.starts_with('[') || !s.ends_with(']') {
+            return Err(anyhow!("String is not a list"));
+        }
+        Ok(Self { s, current: 1 })
     }
 }
 
-impl FromStr for Coord {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut digits = s.split(',');
-        Ok(Self {
-            x: digits
-                .next()
-                .ok_or_else(|| anyhow!("No first digit"))?
-                .parse::<usize>()
-                .map_err(|error| anyhow!("Error parsing first digit: {}", error))?,
-            y: digits
-                .next()
-                .ok_or_else(|| anyhow!("No second digit"))?
-                .parse::<usize>()
-                .map_err(|error| anyhow!("Error parsing second digit: {}", error))?,
-        })
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-enum Axis {
-    X,
-    Y,
-}
-
-#[derive(Copy, Clone, Debug)]
-struct Fold {
-    axis: Axis,
-    value: usize,
-}
-
-impl FromStr for Fold {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut axis = s
-            .split(' ')
-            .last()
-            .ok_or_else(|| anyhow!("Input string is empty?"))?
-            .split('=');
-        Ok(Self {
-            axis: match axis.next().ok_or_else(|| anyhow!("Can't find fold axis"))? {
-                "x" => Ok(Axis::X),
-                "y" => Ok(Axis::Y),
-                axis => Err(anyhow!("Unrecognized axis: {}", axis)),
-            }?,
-            value: axis
-                .next()
-                .ok_or_else(|| anyhow!("No axis value"))?
-                .parse::<usize>()
-                .map_err(|error| anyhow!("Failed to parse fold axis value: {}", error))?,
-        })
-    }
-}
-
-#[derive(Debug)]
-struct Paper {
-    size: Coord,
-    cells: Vec<bool>,
-}
-
-impl Display for Paper {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (0..self.size.y).try_for_each(|y| {
-            (0..self.size.x).try_for_each(|x| {
-                write!(
-                    f,
-                    "{}",
-                    if self.cells[x + y * self.size.x] {
-                        '#'
-                    } else {
-                        '.'
-                    }
-                )
-            })?;
-            writeln!(f)
-        })
-    }
-}
-
-fn fold_up(paper: Paper, axis: usize) -> Paper {
-    let paper_start = axis + 1;
-    let fold_last = axis - 1;
-    let folded_size = Coord::new(paper.size.x, axis.max(paper.size.y - paper_start));
-    let mut folded_paper = Paper {
-        size: folded_size,
-        cells: paper.cells[0..folded_size.x * folded_size.y].to_vec(),
-    };
-    (paper_start..paper.size.y)
-        .enumerate()
-        .filter_map(|(index, y)| {
-            if index <= fold_last {
-                Some((fold_last - index, y))
-            } else {
-                None
-            }
-        })
-        .for_each(|(fold_y, y)| {
-            let fold_start = fold_y * folded_size.x;
-            let paper_row_start = y * paper.size.x;
-            (0..paper.size.x).for_each(|x| {
-                let cell = &mut folded_paper.cells[fold_start + x];
-                if !*cell {
-                    *cell = paper.cells[paper_row_start + x];
+impl<'a> Iterator for ListIterator<'a> {
+    type Item = &'a str;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current == self.s.len() - 1 {
+            return None;
+        }
+        // From the current position, scan.
+        // For every open bracket we encounter, we'll need to encounter a close bracket.
+        // But if we find a comma, we're done.
+        let mut open = 0;
+        let offset = self.s[self.current..self.s.len() - 1]
+            .chars()
+            .take_while(|c| match c {
+                '[' => {
+                    open += 1;
+                    true
                 }
-            });
-        });
-    folded_paper
-}
-
-fn fold_left(paper: Paper, axis: usize) -> Paper {
-    let paper_start = axis + 1;
-    let fold_last = axis - 1;
-    let folded_size = Coord::new(axis.max(paper.size.x - paper_start), paper.size.y);
-    let mut folded_paper = Paper {
-        size: folded_size,
-        cells: (0..paper.size.y)
-            .flat_map(|y| (0..axis).map(move |x| x + y * paper.size.x))
-            .map(|index| paper.cells[index])
-            .collect::<Vec<bool>>(),
-    };
-    (paper_start..paper.size.x)
-        .enumerate()
-        .filter_map(|(index, x)| {
-            if index <= fold_last {
-                Some((fold_last - index, x))
-            } else {
-                None
-            }
-        })
-        .for_each(|(fold_x, x)| {
-            (0..paper.size.y).for_each(|y| {
-                let cell = &mut folded_paper.cells[fold_x + y * folded_size.x];
-                if !*cell {
-                    *cell = paper.cells[x + y * paper.size.x];
+                ']' => {
+                    open -= 1;
+                    true
                 }
-            });
-        });
-    folded_paper
-}
-
-fn solve_for(input: &str) -> Result<(usize, String, Duration)> {
-    let parse_start = Instant::now();
-    let mut sections = input.split("\n\n");
-    let dots = sections
-        .next()
-        .ok_or_else(|| anyhow!("No dots section"))?
-        .lines()
-        .map(|line| line.parse::<Coord>())
-        .collect::<Result<Vec<Coord>>>()?;
-    let folds = sections
-        .next()
-        .ok_or_else(|| anyhow!("No folds section"))?
-        .lines()
-        .map(|line| line.parse::<Fold>())
-        .collect::<Result<Vec<Fold>>>()?;
-    let parse_duration = parse_start.elapsed();
-
-    let size = dots.iter().fold(Coord::new(0, 0), |current, coord| Coord {
-        x: current.x.max(coord.x + 1),
-        y: current.y.max(coord.y + 1),
-    });
-    let mut paper = Paper {
-        size,
-        cells: vec![false; size.x * size.y],
-    };
-    dots.iter()
-        .for_each(|coord| paper.cells[coord.x + coord.y * size.x] = true);
-
-    let first_fold = folds
-        .get(0)
-        .ok_or_else(|| anyhow!("No folds whatsoever!"))?;
-    let paper = match first_fold.axis {
-        Axis::X => fold_left(paper, first_fold.value),
-        Axis::Y => fold_up(paper, first_fold.value),
-    };
-    let part1 = paper.cells.iter().filter(|&&cell| cell).count();
-
-    let part2 = format!(
-        "{}",
-        folds
-            .iter()
-            .skip(1)
-            .fold(paper, |current, fold| match fold.axis {
-                Axis::X => fold_left(current, fold.value),
-                Axis::Y => fold_up(current, fold.value),
+                ',' => open != 0,
+                _ => true,
             })
-    );
+            .count();
+        let new_current = self.current + offset;
+        let element = &self.s[self.current..new_current];
+        self.current = new_current;
+        if self.s.chars().nth(self.current).unwrap() == ',' {
+            self.current += 1;
+        }
+        Some(element)
+    }
+}
+
+#[test]
+fn list_iterator() {
+    let s = "";
+    assert!(ListIterator::new(s).is_err());
+
+    let s = "[]";
+    let i = ListIterator::new(s).unwrap();
+    assert_eq!(0, i.count());
+
+    let s = "[1]";
+    let i = ListIterator::new(s).unwrap();
+    assert_eq!(1, i.count());
+
+    let s = "[[]]";
+    let i = ListIterator::new(s).unwrap();
+    assert_eq!(1, i.count());
+
+    let s = "[[[]]]";
+    let i = ListIterator::new(s).unwrap();
+    assert_eq!(1, i.count());
+
+    let s = "[7,7,7]";
+    let i = ListIterator::new(s).unwrap();
+    assert_eq!(3, i.count());
+
+    let s = "[[7,7,7]]";
+    let i = ListIterator::new(s).unwrap();
+    assert_eq!(1, i.count());
+
+    let s = "[[1],[2,3,4]]";
+    let i = ListIterator::new(s).unwrap();
+    assert_eq!(2, i.count());
+
+    let s = "[1,[2,[3,[4,[5,6,7]]]],8,9]";
+    let i = ListIterator::new(s).unwrap();
+    assert_eq!(4, i.count());
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord)]
+struct Int(usize);
+
+impl FromStr for Int {
+    type Err = ParseIntError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse::<usize>()?))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct List(Vec<Packet>);
+
+impl FromStr for List {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(
+            ListIterator::new(s)?
+                .map(|element| element.parse::<Packet>())
+                .collect::<Result<Vec<Packet>>>()?,
+        ))
+    }
+}
+
+impl PartialOrd for List {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for List {
+    fn cmp(&self, other: &Self) -> Ordering {
+        for (lhs, rhs) in self.0.iter().zip(other.0.iter()) {
+            let result = lhs.cmp(rhs);
+            if result != Ordering::Equal {
+                return result;
+            }
+        }
+        self.0.len().cmp(&other.0.len())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Packet {
+    Int(Int),
+    List(List),
+}
+
+impl FromStr for Packet {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(int) = s.parse::<Int>() {
+            Ok(Self::Int(int))
+        } else if let Ok(list) = s.parse::<List>() {
+            Ok(Self::List(list))
+        } else {
+            Err(anyhow!("Not an integer and not a list"))
+        }
+    }
+}
+
+impl PartialOrd for Packet {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Packet {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self {
+            Packet::Int(lhs) => match other {
+                Packet::Int(rhs) => lhs.cmp(rhs),
+                Packet::List(rhs) => List(vec![Packet::Int(*lhs)]).cmp(rhs),
+            },
+            Packet::List(lhs) => match other {
+                Packet::Int(rhs) => lhs.cmp(&List(vec![Packet::Int(*rhs)])),
+                Packet::List(rhs) => lhs.cmp(rhs),
+            },
+        }
+    }
+}
+
+fn solve_for(input: &str) -> Result<(usize, usize, Duration)> {
+    let timer = Instant::now();
+    let packet_pairs = input
+        .split("\n\n")
+        .map(|packet_pair| {
+            let mut lines = packet_pair.lines();
+            let a = lines.next().unwrap().parse::<List>()?;
+            let b = lines.next().unwrap().parse::<List>()?;
+            Ok((a, b))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let parse_duration = timer.elapsed();
+
+    // println!("{packet_pairs:?}");
+
+    let part1 = packet_pairs
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (lhs, rhs))| if lhs <= rhs { Some(index + 1) } else { None })
+        .sum();
+
+    let part2 = 1;
 
     Ok((part1, part2, parse_duration))
 }
 
-pub(crate) fn solve() -> (usize, String, Duration) {
+pub(crate) fn solve() -> (usize, usize, Duration) {
     match solve_for(INPUT) {
         Ok(solution) => solution,
         Err(error) => {
             println!("day 13 error: {}", error);
-            (0, String::new(), Duration::new(0, 0))
+            (0, 1, Duration::new(0, 0))
         }
     }
 }
