@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::{
     cmp::Ordering,
     num::ParseIntError,
+    ops::{Add, Neg, Sub},
     str::FromStr,
     time::{Duration, Instant},
 };
@@ -30,6 +31,26 @@ impl FromStr for Point {
     }
 }
 
+impl Add for Point {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
+    }
+}
+
+impl Sub for Point {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
+}
+
 impl Point {
     fn manhattan_distance(&self, rhs: &Point) -> usize {
         ((self.x - rhs.x).abs() + (self.y - rhs.y).abs()) as usize
@@ -38,9 +59,6 @@ impl Point {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Sensor(Point);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Beacon(Point);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct EffectiveSensor {
@@ -63,6 +81,13 @@ impl EffectiveSensor {
                 length: x_range as usize * 2,
             })
         }
+    }
+
+    fn bounds(&self) -> (Point, Point) {
+        let position = self.sensor.0;
+        let range = self.range as i32;
+        let offset = Point { x: range, y: range };
+        (position - offset, position + offset)
     }
 }
 
@@ -102,7 +127,7 @@ impl Span {
     }
 }
 
-fn solve_for(input: &str, y: i32) -> Result<(usize, usize, Duration)> {
+fn solve_for(input: &str, part1_y: i32, part2_max: usize) -> Result<(usize, usize, Duration)> {
     let timer = Instant::now();
     let effective_sensors = input
         .lines()
@@ -125,29 +150,53 @@ fn solve_for(input: &str, y: i32) -> Result<(usize, usize, Duration)> {
     // Given a row, which sensors intersect it?
     // Given the set of sensors intersecting a row, what is the x-range of the intersection?
 
-    let mut spans = effective_sensors
-        .iter()
-        .filter_map(|sensor| sensor.span_at(y))
-        .collect::<Vec<Span>>();
-    spans.sort_unstable();
-    let mut i = 0;
-    while i + 1 < spans.len() {
-        if let Some(merge) = spans[i].merge(&spans[i + 1]) {
-            spans[i] = merge;
-            spans.remove(i + 1);
-        } else {
-            i += 1;
+    let compute_spans = |y| {
+        let mut spans = effective_sensors
+            .iter()
+            .filter_map(|sensor| sensor.span_at(y))
+            .collect::<Vec<Span>>();
+        spans.sort_unstable();
+        let mut i = 0;
+        while i + 1 < spans.len() {
+            if let Some(merge) = spans[i].merge(&spans[i + 1]) {
+                spans[i] = merge;
+                spans.remove(i + 1);
+            } else {
+                i += 1;
+            }
         }
-    }
+        spans
+    };
 
-    let part1 = spans.iter().map(|span| span.length).sum::<usize>();
-    let part2 = 1;
+    let part1 = compute_spans(part1_y)
+        .iter()
+        .map(|span| span.length)
+        .sum::<usize>();
+
+    let mut y = effective_sensors
+        .iter()
+        .map(|sensor| sensor.sensor.0.y - sensor.range as i32)
+        .min()
+        .unwrap()
+        .max(0);
+    let x = loop {
+        let spans = compute_spans(y);
+        if spans.len() > 1 {
+            let x = spans[0].end() + 1;
+            if x >= 0 {
+                break x;
+            }
+        }
+        y += 1;
+    };
+
+    let part2 = x as usize * 4_000_000 + y as usize;
 
     Ok((part1, part2, parse_duration))
 }
 
 pub(crate) fn solve() -> (usize, usize, Duration) {
-    match solve_for(INPUT, 2_000_000) {
+    match solve_for(INPUT, 2_000_000, 4_000_000) {
         Ok(solution) => solution,
         Err(error) => {
             println!("day 15 error: {}", error);
