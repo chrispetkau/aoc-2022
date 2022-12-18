@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::{
     cmp::Ordering,
     num::ParseIntError,
-    ops::{Add, Neg, Sub},
+    ops::{Add, Sub},
     str::FromStr,
     time::{Duration, Instant},
 };
@@ -82,13 +82,6 @@ impl EffectiveSensor {
             })
         }
     }
-
-    fn bounds(&self) -> (Point, Point) {
-        let position = self.sensor.0;
-        let range = self.range as i32;
-        let offset = Point { x: range, y: range };
-        (position - offset, position + offset)
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -127,7 +120,7 @@ impl Span {
     }
 }
 
-fn solve_for(input: &str, part1_y: i32, part2_max: usize) -> Result<(usize, usize, Duration)> {
+fn solve_for(input: &str, part1_y: i32) -> Result<(usize, usize, Duration)> {
     let timer = Instant::now();
     let effective_sensors = input
         .lines()
@@ -196,7 +189,7 @@ fn solve_for(input: &str, part1_y: i32, part2_max: usize) -> Result<(usize, usiz
 }
 
 pub(crate) fn solve() -> (usize, usize, Duration) {
-    match solve_for(INPUT, 2_000_000, 4_000_000) {
+    match solve_for(INPUT, 2_000_000) {
         Ok(solution) => solution,
         Err(error) => {
             println!("day 15 error: {}", error);

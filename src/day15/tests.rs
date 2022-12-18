@@ -17,12 +17,12 @@ Sensor at x=20, y=1: closest beacon is at x=15, y=3";
 
 #[test]
 fn part1() {
-    assert_eq!(26, solve_for(INPUT, 10, 20).unwrap().0);
-    assert_eq!(4_725_496, solve_for(input::INPUT, 2_000_000, 4_000_000).unwrap().0); // too high
+    assert_eq!(26, solve_for(INPUT, 10).unwrap().0);
+    assert_eq!(4_725_496, solve_for(input::INPUT, 2_000_000).unwrap().0); // too high
 }
 
 #[test]
 fn part2() {
-    assert_eq!(56_000_011, solve_for(INPUT, 10, 20).unwrap().1);
-    assert_eq!(12051287042458, solve_for(input::INPUT, 2_000_000, 4_000_000).unwrap().1);
+    assert_eq!(56_000_011, solve_for(INPUT, 10).unwrap().1);
+    assert_eq!(12051287042458, solve_for(input::INPUT, 2_000_000).unwrap().1);
 }
